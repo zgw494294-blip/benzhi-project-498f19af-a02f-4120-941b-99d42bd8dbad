@@ -13,7 +13,7 @@ import (
 )
 
 func (r *SQLiteRepository) Create(ctx context.Context, c domain.ConservationCase, key string, mutation application.Mutation) (domain.ConservationCase, bool, error) {
-	tx, err := r.db.BeginTx(context.WithoutCancel(ctx), nil)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return c, false, fmt.Errorf("开始建档事务: %w", err)
 	}
@@ -27,18 +27,21 @@ func (r *SQLiteRepository) Create(ctx context.Context, c domain.ConservationCase
 	if err != nil {
 		return c, false, err
 	}
-	_, err = tx.ExecContext(context.WithoutCancel(ctx), `INSERT INTO cases(id,cave_code,mural_zone,status,version,aggregate_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`,
+	_, err = tx.ExecContext(ctx, `INSERT INTO cases(id,cave_code,mural_zone,status,version,aggregate_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`,
 		c.ID, c.CaveCode, c.MuralZone, c.Status, c.Version, payload, c.CreatedAt.Format(time.RFC3339Nano), c.UpdatedAt.Format(time.RFC3339Nano))
 	if err != nil {
 		return c, false, fmt.Errorf("保存处置案: %w", err)
 	}
 	event := domain.AuditEvent{CaseID: c.ID, Sequence: 1, EventType: mutation.EventType, Actor: mutation.Actor, Summary: mutation.Summary, OccurredAt: c.CreatedAt, CaseVersion: c.Version, Details: mutation.Details}
 	event.EventHash = domain.AuditHash("", event)
-	if err := insertAudit(context.WithoutCancel(ctx), tx, event); err != nil {
+	if err := insertAudit(ctx, tx, event); err != nil {
 		return c, false, err
 	}
-	if err := insertIdempotency(context.WithoutCancel(ctx), tx, key, c.ID, mutation.EventType, payload, c.CreatedAt); err != nil {
+	if err := insertIdempotency(ctx, tx, key, c.ID, mutation.EventType, payload, c.CreatedAt); err != nil {
 		return c, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return c, false, fmt.Errorf("提交前检测到请求取消: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return c, false, fmt.Errorf("提交建档事务: %w", err)
@@ -47,7 +50,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, c domain.ConservationCase
 }
 
 func (r *SQLiteRepository) Mutate(ctx context.Context, id string, expectedVersion int64, key string, mutation application.Mutation) (domain.ConservationCase, bool, error) {
-	tx, err := r.db.BeginTx(context.WithoutCancel(ctx), nil)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.ConservationCase{}, false, fmt.Errorf("开始更新事务: %w", err)
 	}
@@ -91,7 +94,7 @@ func (r *SQLiteRepository) Mutate(ctx context.Context, id string, expectedVersio
 	if err != nil {
 		return c, false, err
 	}
-	result, err := tx.ExecContext(context.WithoutCancel(ctx), `UPDATE cases SET status=?,version=?,aggregate_json=?,updated_at=? WHERE id=? AND version=?`, c.Status, c.Version, payload, c.UpdatedAt.Format(time.RFC3339Nano), id, expectedVersion)
+	result, err := tx.ExecContext(ctx, `UPDATE cases SET status=?,version=?,aggregate_json=?,updated_at=? WHERE id=? AND version=?`, c.Status, c.Version, payload, c.UpdatedAt.Format(time.RFC3339Nano), id, expectedVersion)
 	if err != nil {
 		return c, false, fmt.Errorf("条件更新处置案: %w", err)
 	}
@@ -102,20 +105,23 @@ func (r *SQLiteRepository) Mutate(ctx context.Context, id string, expectedVersio
 	if affected != 1 {
 		return c, false, domain.ErrConflict
 	}
-	if err := syncImmutableParts(context.WithoutCancel(ctx), tx, c); err != nil {
+	if err := syncImmutableParts(ctx, tx, c); err != nil {
 		return c, false, err
 	}
-	sequence, previous, err := nextAuditSequence(context.WithoutCancel(ctx), tx, id)
+	sequence, previous, err := nextAuditSequence(ctx, tx, id)
 	if err != nil {
 		return c, false, err
 	}
 	event := domain.AuditEvent{CaseID: id, Sequence: sequence, EventType: mutation.EventType, Actor: mutation.Actor, Summary: mutation.Summary, OccurredAt: c.UpdatedAt, CaseVersion: c.Version, PreviousHash: previous, Details: mutation.Details}
 	event.EventHash = domain.AuditHash(previous, event)
-	if err := insertAudit(context.WithoutCancel(ctx), tx, event); err != nil {
+	if err := insertAudit(ctx, tx, event); err != nil {
 		return c, false, err
 	}
-	if err := insertIdempotency(context.WithoutCancel(ctx), tx, key, id, mutation.EventType, payload, c.UpdatedAt); err != nil {
+	if err := insertIdempotency(ctx, tx, key, id, mutation.EventType, payload, c.UpdatedAt); err != nil {
 		return c, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return c, false, fmt.Errorf("提交前检测到请求取消: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return c, false, fmt.Errorf("提交更新事务: %w", err)
