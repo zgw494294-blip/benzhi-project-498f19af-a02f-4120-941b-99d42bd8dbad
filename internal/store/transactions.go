@@ -18,7 +18,7 @@ func (r *SQLiteRepository) Create(ctx context.Context, c domain.ConservationCase
 		return c, false, fmt.Errorf("开始建档事务: %w", err)
 	}
 	defer tx.Rollback()
-	if cached, ok, err := cachedResult(ctx, tx, key); err != nil {
+	if cached, ok, err := cachedResult(ctx, tx, key, mutation.EventType); err != nil {
 		return c, false, err
 	} else if ok {
 		return cached, true, nil
@@ -52,7 +52,7 @@ func (r *SQLiteRepository) Mutate(ctx context.Context, id string, expectedVersio
 		return domain.ConservationCase{}, false, fmt.Errorf("开始更新事务: %w", err)
 	}
 	defer tx.Rollback()
-	if cached, ok, err := cachedResult(ctx, tx, key); err != nil {
+	if cached, ok, err := cachedResult(ctx, tx, key, mutation.EventType); err != nil {
 		return domain.ConservationCase{}, false, err
 	} else if ok {
 		if cached.ID != id {
@@ -123,14 +123,18 @@ func (r *SQLiteRepository) Mutate(ctx context.Context, id string, expectedVersio
 	return c, false, nil
 }
 
-func cachedResult(ctx context.Context, tx *sql.Tx, key string) (domain.ConservationCase, bool, error) {
+func cachedResult(ctx context.Context, tx *sql.Tx, key, operation string) (domain.ConservationCase, bool, error) {
 	var data []byte
-	err := tx.QueryRowContext(ctx, `SELECT response_json FROM idempotency_results WHERE idempotency_key=?`, key).Scan(&data)
+	var storedOperation string
+	err := tx.QueryRowContext(ctx, `SELECT response_json,operation FROM idempotency_results WHERE idempotency_key=?`, key).Scan(&data, &storedOperation)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.ConservationCase{}, false, nil
 	}
 	if err != nil {
 		return domain.ConservationCase{}, false, fmt.Errorf("读取幂等结果: %w", err)
+	}
+	if storedOperation != operation {
+		return domain.ConservationCase{}, false, domain.ErrIdempotencyConflict
 	}
 	c, err := unmarshalCase(data)
 	return c, err == nil, err

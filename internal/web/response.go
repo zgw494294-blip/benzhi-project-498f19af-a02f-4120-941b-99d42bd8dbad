@@ -53,6 +53,9 @@ func writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrCredentialRevoked):
 		status = http.StatusConflict
 		body = apiError{Code: "credential_already_revoked", Message: "凭据已经撤销，撤销不可逆"}
+	case errors.Is(err, domain.ErrIdempotencyConflict):
+		status = http.StatusConflict
+		body = apiError{Code: "idempotency_key_conflict", Message: "idempotencyKey 已绑定其他操作，不能跨操作复用"}
 	}
 	if status == http.StatusInternalServerError {
 		slog.Error("请求处理失败", "error", err)
