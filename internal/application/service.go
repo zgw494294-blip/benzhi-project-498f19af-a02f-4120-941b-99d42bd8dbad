@@ -134,4 +134,10 @@ func (s *Service) VerifyCredential(ctx context.Context, number string) (Verifica
 	return VerificationResult{Valid: valid, Message: message, Credential: snapshot.credential, Manifest: snapshot.manifest}, nil
 }
 
+func (s *Service) invalidateVerificationCache(number string) {
+	s.verificationMu.Lock()
+	delete(s.verificationCache, number)
+	s.verificationMu.Unlock()
+}
+
 func (s *Service) Close() error { return s.repo.Close() }

@@ -64,5 +64,11 @@ func (s *Service) RevokeCredential(ctx context.Context, caseID string, command R
 		},
 	}
 	result, _, err := s.repo.Mutate(ctx, caseID, command.ExpectedVersion, command.IdempotencyKey, mutation)
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	// 撤销成功后凭据状态已被持久化，必须丢弃内存中的验真快照，
+	// 否则同进程内再次验真仍会读到撤销前的 active 状态。
+	s.invalidateVerificationCache(number)
+	return result, nil
 }
