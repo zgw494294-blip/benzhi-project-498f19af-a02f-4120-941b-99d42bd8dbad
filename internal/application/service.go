@@ -66,7 +66,7 @@ func (s *Service) GetCase(ctx context.Context, id string) (domain.ConservationCa
 	}
 	result, err := s.repo.Get(ctx, id)
 	if err != nil && ctx.Err() != nil {
-		return domain.ConservationCase{}, fmt.Errorf("读取处置案被取消: %v", err)
+		return domain.ConservationCase{}, fmt.Errorf("读取处置案被取消: %w", err)
 	}
 	return result, err
 }
@@ -74,7 +74,7 @@ func (s *Service) GetCase(ctx context.Context, id string) (domain.ConservationCa
 func (s *Service) ListCases(ctx context.Context) ([]domain.ConservationCase, error) {
 	result, err := s.repo.List(ctx)
 	if err != nil && ctx.Err() != nil {
-		return nil, fmt.Errorf("查询处置案被取消: %v", err)
+		return nil, fmt.Errorf("查询处置案被取消: %w", err)
 	}
 	return result, err
 }
@@ -82,7 +82,7 @@ func (s *Service) ListCases(ctx context.Context) ([]domain.ConservationCase, err
 func (s *Service) AuditTimeline(ctx context.Context, caseID string) ([]domain.AuditEvent, error) {
 	result, err := s.repo.Audit(ctx, caseID)
 	if err != nil && ctx.Err() != nil {
-		return nil, fmt.Errorf("读取审计时间线被取消: %v", err)
+		return nil, fmt.Errorf("读取审计时间线被取消: %w", err)
 	}
 	return result, err
 }
@@ -90,14 +90,14 @@ func (s *Service) AuditTimeline(ctx context.Context, caseID string) ([]domain.Au
 func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) ([]domain.ZoneEvidenceTrend, error) {
 	if _, err := s.repo.Get(ctx, caseID); err != nil {
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("读取趋势所属处置案被取消: %v", err)
+			return nil, fmt.Errorf("读取趋势所属处置案被取消: %w", err)
 		}
 		return nil, err
 	}
 	items, err := s.repo.EvidenceRevisions(ctx, caseID, strings.TrimSpace(zoneCode))
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("读取证据修订被取消: %v", err)
+			return nil, fmt.Errorf("读取证据修订被取消: %w", err)
 		}
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (s *Service) VerifyCredential(ctx context.Context, number string) (Verifica
 	credential, manifest, err := s.repo.FindCredential(ctx, number)
 	if err != nil {
 		if ctx.Err() != nil {
-			return VerificationResult{}, fmt.Errorf("读取验真事实被取消: %v", err)
+			return VerificationResult{}, fmt.Errorf("读取验真事实被取消: %w", err)
 		}
 		return VerificationResult{}, err
 	}
