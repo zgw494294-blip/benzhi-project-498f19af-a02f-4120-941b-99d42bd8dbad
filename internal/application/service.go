@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"benzhi-project-498f19af-a02f-4120-941b-99d42bd8dbad/internal/domain"
@@ -24,6 +25,7 @@ type Service struct {
 	repo               Repository
 	now                Clock
 	idgen              func(string) string
+	evidenceTrendMu    sync.RWMutex
 	evidenceTrendCache map[evidenceTrendCacheKey][]domain.ZoneEvidenceTrend
 }
 
@@ -94,9 +96,14 @@ func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) (
 	}
 	zoneCode = strings.TrimSpace(zoneCode)
 	cacheKey := evidenceTrendCacheKey{caseID: caseID, zoneCode: zoneCode, version: caseSnapshot.Version}
-	if cached, ok := s.evidenceTrendCache[cacheKey]; ok {
+
+	s.evidenceTrendMu.RLock()
+	cached, ok := s.evidenceTrendCache[cacheKey]
+	s.evidenceTrendMu.RUnlock()
+	if ok {
 		return cloneEvidenceTrends(cached), nil
 	}
+
 	items, err := s.repo.EvidenceRevisions(ctx, caseID, zoneCode)
 	if err != nil {
 		return nil, err
@@ -118,7 +125,11 @@ func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) (
 		}
 		result = append(result, trend)
 	}
-	s.evidenceTrendCache[cacheKey] = cloneEvidenceTrends(result)
+
+	cached = cloneEvidenceTrends(result)
+	s.evidenceTrendMu.Lock()
+	s.evidenceTrendCache[cacheKey] = cached
+	s.evidenceTrendMu.Unlock()
 	return result, nil
 }
 
