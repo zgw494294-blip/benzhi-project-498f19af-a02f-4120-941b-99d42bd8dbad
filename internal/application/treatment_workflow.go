@@ -10,6 +10,9 @@ import (
 )
 
 func (s *Service) SubmitPlan(ctx context.Context, caseID string, command SubmitPlanCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -36,6 +39,9 @@ func (s *Service) SubmitPlan(ctx context.Context, caseID string, command SubmitP
 }
 
 func (s *Service) StartTrial(ctx context.Context, caseID string, command StartTrialCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -77,6 +83,9 @@ func (s *Service) StartTrial(ctx context.Context, caseID string, command StartTr
 }
 
 func (s *Service) AppendTrialObservation(ctx context.Context, caseID string, command AppendTrialObservationCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -124,6 +133,9 @@ func (s *Service) AppendTrialObservation(ctx context.Context, caseID string, com
 }
 
 func (s *Service) RecordTrial(ctx context.Context, caseID string, command RecordTrialCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -159,6 +171,9 @@ func (s *Service) RecordTrial(ctx context.Context, caseID string, command Record
 }
 
 func (s *Service) Review(ctx context.Context, caseID string, command ReviewCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}

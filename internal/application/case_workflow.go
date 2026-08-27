@@ -9,6 +9,9 @@ import (
 )
 
 func (s *Service) CreateCase(ctx context.Context, command CreateCaseCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	command.CaveCode = strings.TrimSpace(command.CaveCode)
 	command.MuralZone = strings.TrimSpace(command.MuralZone)
 	command.Owner = strings.TrimSpace(command.Owner)
@@ -39,6 +42,9 @@ func (s *Service) CreateCase(ctx context.Context, command CreateCaseCommand) (do
 }
 
 func (s *Service) AddEvidence(ctx context.Context, caseID string, command AddEvidenceCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -82,6 +88,9 @@ func (s *Service) AddEvidence(ctx context.Context, caseID string, command AddEvi
 }
 
 func (s *Service) AssessRisk(ctx context.Context, caseID string, command AssessRiskCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}

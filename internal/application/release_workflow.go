@@ -9,6 +9,9 @@ import (
 )
 
 func (s *Service) Freeze(ctx context.Context, caseID string, command FreezeCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -29,6 +32,9 @@ func (s *Service) Freeze(ctx context.Context, caseID string, command FreezeComma
 }
 
 func (s *Service) IssueCredential(ctx context.Context, caseID string, command IssueCredentialCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
@@ -50,6 +56,9 @@ func (s *Service) IssueCredential(ctx context.Context, caseID string, command Is
 }
 
 func (s *Service) RevokeCredential(ctx context.Context, caseID string, command RevokeCredentialCommand) (domain.ConservationCase, error) {
+	if err := s.ensureAvailable(); err != nil {
+		return domain.ConservationCase{}, err
+	}
 	if err := validateMeta(command.CommandMeta); err != nil {
 		return domain.ConservationCase{}, err
 	}
