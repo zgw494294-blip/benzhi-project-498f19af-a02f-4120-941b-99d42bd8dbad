@@ -14,14 +14,26 @@ import (
 
 type Clock func() time.Time
 
+type evidenceTrendCacheKey struct {
+	caseID   string
+	zoneCode string
+	version  int64
+}
+
 type Service struct {
-	repo  Repository
-	now   Clock
-	idgen func(string) string
+	repo               Repository
+	now                Clock
+	idgen              func(string) string
+	evidenceTrendCache map[evidenceTrendCacheKey][]domain.ZoneEvidenceTrend
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now, idgen: randomID}
+	return &Service{
+		repo:               repo,
+		now:                time.Now,
+		idgen:              randomID,
+		evidenceTrendCache: make(map[evidenceTrendCacheKey][]domain.ZoneEvidenceTrend),
+	}
 }
 
 func NewServiceWithClock(repo Repository, clock Clock) *Service {
@@ -76,10 +88,16 @@ func (s *Service) AuditTimeline(ctx context.Context, caseID string) ([]domain.Au
 }
 
 func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) ([]domain.ZoneEvidenceTrend, error) {
-	if _, err := s.repo.Get(ctx, caseID); err != nil {
+	caseSnapshot, err := s.repo.Get(ctx, caseID)
+	if err != nil {
 		return nil, err
 	}
-	items, err := s.repo.EvidenceRevisions(ctx, caseID, strings.TrimSpace(zoneCode))
+	zoneCode = strings.TrimSpace(zoneCode)
+	cacheKey := evidenceTrendCacheKey{caseID: caseID, zoneCode: zoneCode, version: caseSnapshot.Version}
+	if cached, ok := s.evidenceTrendCache[cacheKey]; ok {
+		return cloneEvidenceTrends(cached), nil
+	}
+	items, err := s.repo.EvidenceRevisions(ctx, caseID, zoneCode)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +118,30 @@ func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) (
 		}
 		result = append(result, trend)
 	}
+	s.evidenceTrendCache[cacheKey] = cloneEvidenceTrends(result)
 	return result, nil
+}
+
+func cloneEvidenceTrends(items []domain.ZoneEvidenceTrend) []domain.ZoneEvidenceTrend {
+	cloned := make([]domain.ZoneEvidenceTrend, len(items))
+	for trendIndex := range items {
+		cloned[trendIndex] = items[trendIndex]
+		cloned[trendIndex].Revisions = make([]domain.EvidenceRevisionTrend, len(items[trendIndex].Revisions))
+		for revisionIndex := range items[trendIndex].Revisions {
+			revision := items[trendIndex].Revisions[revisionIndex]
+			revision.RiskReasonCodes = append([]string(nil), revision.RiskReasonCodes...)
+			if revision.CoverageDelta != nil {
+				value := *revision.CoverageDelta
+				revision.CoverageDelta = &value
+			}
+			if revision.ActivityDelta != nil {
+				value := *revision.ActivityDelta
+				revision.ActivityDelta = &value
+			}
+			cloned[trendIndex].Revisions[revisionIndex] = revision
+		}
+	}
+	return cloned
 }
 
 func (s *Service) VerifyCredential(ctx context.Context, number string) (VerificationResult, error) {
