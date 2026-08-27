@@ -9,8 +9,12 @@ import (
 	"benzhi-project-498f19af-a02f-4120-941b-99d42bd8dbad/internal/domain"
 )
 
-func syncImmutableParts(ctx context.Context, tx *sql.Tx, c domain.ConservationCase) error {
+func (r *SQLiteRepository) syncImmutableParts(ctx context.Context, tx *sql.Tx, c domain.ConservationCase) error {
 	for _, item := range c.Evidence {
+		cacheKey := fmt.Sprintf("%s:%s:%d", c.ID, item.ZoneCode, item.Revision)
+		if r.evidenceAlreadySynced(cacheKey) {
+			continue
+		}
 		data, err := marshal(item)
 		if err != nil {
 			return err

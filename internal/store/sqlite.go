@@ -4,13 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
 
 type SQLiteRepository struct {
-	db *sql.DB
+	db             *sql.DB
+	immutableMu    sync.Mutex
+	evidenceSynced map[string]struct{}
 }
 
 func Open(path string) (*SQLiteRepository, error) {
@@ -27,7 +30,10 @@ func Open(path string) (*SQLiteRepository, error) {
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
-	repo := &SQLiteRepository{db: db}
+	repo := &SQLiteRepository{
+		db:             db,
+		evidenceSynced: make(map[string]struct{}),
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	if err := repo.migrate(ctx); err != nil {
@@ -58,3 +64,13 @@ func (r *SQLiteRepository) migrate(ctx context.Context) error {
 func (r *SQLiteRepository) Close() error { return r.db.Close() }
 
 func (r *SQLiteRepository) Ping(ctx context.Context) error { return r.db.PingContext(ctx) }
+
+func (r *SQLiteRepository) evidenceAlreadySynced(key string) bool {
+	r.immutableMu.Lock()
+	defer r.immutableMu.Unlock()
+	if _, ok := r.evidenceSynced[key]; ok {
+		return true
+	}
+	r.evidenceSynced[key] = struct{}{}
+	return false
+}

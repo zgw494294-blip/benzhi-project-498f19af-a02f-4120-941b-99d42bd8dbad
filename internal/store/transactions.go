@@ -102,7 +102,7 @@ func (r *SQLiteRepository) Mutate(ctx context.Context, id string, expectedVersio
 	if affected != 1 {
 		return c, false, domain.ErrConflict
 	}
-	if err := syncImmutableParts(ctx, tx, c); err != nil {
+	if err := r.syncImmutableParts(ctx, tx, c); err != nil {
 		return c, false, err
 	}
 	sequence, previous, err := nextAuditSequence(ctx, tx, id)
