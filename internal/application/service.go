@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"benzhi-project-498f19af-a02f-4120-941b-99d42bd8dbad/internal/domain"
@@ -14,14 +15,27 @@ import (
 
 type Clock func() time.Time
 
+type verificationCall struct {
+	done   chan struct{}
+	result VerificationResult
+	err    error
+}
+
 type Service struct {
-	repo  Repository
-	now   Clock
-	idgen func(string) string
+	repo                 Repository
+	now                  Clock
+	idgen                func(string) string
+	verificationMu       sync.Mutex
+	verificationInFlight map[string]*verificationCall
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now, idgen: randomID}
+	return &Service{
+		repo:                 repo,
+		now:                  time.Now,
+		idgen:                randomID,
+		verificationInFlight: make(map[string]*verificationCall),
+	}
 }
 
 func NewServiceWithClock(repo Repository, clock Clock) *Service {
@@ -104,12 +118,45 @@ func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) (
 }
 
 func (s *Service) VerifyCredential(ctx context.Context, number string) (VerificationResult, error) {
+	call, leader := s.acquireVerification(number)
+	if !leader {
+		select {
+		case <-call.done:
+			return call.result, call.err
+		case <-ctx.Done():
+			return VerificationResult{}, ctx.Err()
+		}
+	}
+
 	credential, manifest, err := s.repo.FindCredential(ctx, number)
 	if err != nil {
+		s.completeVerification(number, call, VerificationResult{}, err)
 		return VerificationResult{}, err
 	}
 	valid, message := domain.VerifyCredential(credential, manifest, s.now().UTC())
-	return VerificationResult{Valid: valid, Message: message, Credential: credential, Manifest: manifest}, nil
+	result := VerificationResult{Valid: valid, Message: message, Credential: credential, Manifest: manifest}
+	s.completeVerification(number, call, result, nil)
+	return result, nil
+}
+
+func (s *Service) acquireVerification(number string) (*verificationCall, bool) {
+	s.verificationMu.Lock()
+	defer s.verificationMu.Unlock()
+	if call, ok := s.verificationInFlight[number]; ok {
+		return call, false
+	}
+	call := &verificationCall{done: make(chan struct{})}
+	s.verificationInFlight[number] = call
+	return call, true
+}
+
+func (s *Service) completeVerification(number string, call *verificationCall, result VerificationResult, err error) {
+	s.verificationMu.Lock()
+	call.result = result
+	call.err = err
+	delete(s.verificationInFlight, number)
+	close(call.done)
+	s.verificationMu.Unlock()
 }
 
 func (s *Service) Close() error { return s.repo.Close() }
