@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"benzhi-project-498f19af-a02f-4120-941b-99d42bd8dbad/internal/domain"
@@ -15,13 +16,20 @@ import (
 type Clock func() time.Time
 
 type Service struct {
-	repo  Repository
-	now   Clock
-	idgen func(string) string
+	repo               Repository
+	now                Clock
+	idgen              func(string) string
+	auditCacheMu       sync.RWMutex
+	auditTimelineCache map[string][]domain.AuditEvent
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now, idgen: randomID}
+	return &Service{
+		repo:               repo,
+		now:                time.Now,
+		idgen:              randomID,
+		auditTimelineCache: make(map[string][]domain.AuditEvent),
+	}
 }
 
 func NewServiceWithClock(repo Repository, clock Clock) *Service {
@@ -72,7 +80,25 @@ func (s *Service) ListCases(ctx context.Context) ([]domain.ConservationCase, err
 }
 
 func (s *Service) AuditTimeline(ctx context.Context, caseID string) ([]domain.AuditEvent, error) {
-	return s.repo.Audit(ctx, caseID)
+	c, err := s.repo.Get(ctx, caseID)
+	if err != nil {
+		return nil, err
+	}
+	cacheKey := fmt.Sprintf("%s:%d", caseID, c.Version)
+	s.auditCacheMu.RLock()
+	cached, ok := s.auditTimelineCache[cacheKey]
+	s.auditCacheMu.RUnlock()
+	if ok {
+		return cached, nil
+	}
+	events, err := s.repo.Audit(ctx, caseID)
+	if err != nil {
+		return nil, err
+	}
+	s.auditCacheMu.Lock()
+	s.auditTimelineCache[cacheKey] = events
+	s.auditCacheMu.Unlock()
+	return events, nil
 }
 
 func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) ([]domain.ZoneEvidenceTrend, error) {
