@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="壁画微生物污染处置与开放安全凭据工作台">
+  <title>壁画微生物处置放行台</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">MURAL CONSERVATION · LOCAL LEDGER</p>
+      <h1>壁画微生物处置放行台</h1>
+      <p class="subtitle">把污染证据、处置方案、小区试验与开放凭据收束为不可越级的本地流程。</p>
+    </div>
+    <div class="seal" aria-label="本地可信工作台">本地<br>可信</div>
+  </header>
+
+  <main>
+    <section class="casebar panel">
+      <div>
+        <label for="caseSelect">当前处置案</label>
+        <select id="caseSelect"><option value="">尚未选择</option></select>
+      </div>
+      <button id="reload" class="secondary">刷新案卷</button>
+      <div id="caseMeta" class="case-meta">请先建档或选择处置案</div>
+    </section>
+
+    <section class="progress panel" aria-labelledby="progressTitle">
+      <div class="section-title">
+        <span>01</span>
+        <div><h2 id="progressTitle">受控流程</h2><p>系统只开放当前状态允许的动作</p></div>
+      </div>
+      <ol id="progressSteps">
+        <li data-status="evidence_collecting">证据收集</li>
+        <li data-status="risk_assessed">风险评估</li>
+        <li data-status="pilot_ready">方案与试验</li>
+        <li data-status="review_pending">责任复核</li>
+        <li data-status="review_approved">冻结资格</li>
+        <li data-status="frozen">证据冻结</li>
+        <li data-status="credential_issued">凭据签发</li>
+      </ol>
+    </section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+    <section class="work-grid">
+      <article class="panel">
+        <div class="section-title"><span>02</span><div><h2>处置案建档</h2><p>登记洞窟、区域和责任归属</p></div></div>
+        <form id="createForm">
+          <div class="fields two">
+            <label>洞窟编号<input name="caveCode" required value="CAVE-17"></label>
+            <label>壁画区域<input name="muralZone" required value="北壁上层"></label>
+            <label>材料敏感性
+              <select name="materialSensitivity"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select>
+            </label>
+            <label>负责人<input name="owner" required value="保护技术员"></label>
+            <label class="wide">发现时间<input name="discoveredAt" type="datetime-local" required></label>
+          </div>
+          <button type="submit">建立处置案</button>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="section-title"><span>03</span><div><h2>污染证据修订</h2><p>每次提交形成不可变修订</p></div></div>
+        <form id="evidenceForm">
+          <div class="fields two">
+            <label>污染区编号<input name="zoneCode" required value="Z-01"></label>
+            <label>采样点（逗号分隔）<input name="samplePoints" required value="P1,P2"></label>
+            <label>覆盖范围 %<input name="coveragePercent" type="number" min="0" max="100" step="0.1" value="24" required></label>
+            <label>活性评分 0–10<input name="activityScore" type="number" min="0" max="10" step="0.1" value="7.2" required></label>
+            <label class="wide">显微观察<textarea name="microscopyFinding" required>菌丝与孢子结构清晰可见</textarea></label>
+            <label class="wide">培养结果<textarea name="cultureFinding" required>培养皿出现稳定菌落增长</textarea></label>
+            <label class="wide">图像摘要<input name="imageDigest" required value="sha256:sample-image-digest"></label>
+          </div>
+          <button type="submit">提交证据修订</button>
+          <button type="button" id="assess" class="secondary">完成风险评估</button>
+        </form>
+		<div id="trendView" class="trend-view empty">选择案卷后加载污染区修订趋势</div>
+      </article>
+
+      <article class="panel">
+        <div class="section-title"><span>04</span><div><h2>处置方案</h2><p>安全边界校验后方可进入试验</p></div></div>
+        <form id="planForm">
+          <div class="fields two">
+            <label>污染区编号<input name="zoneCode" required value="Z-01"></label>
+            <label>清洁介质<select name="cleaningMedium"><option>去离子水</option><option>乙醇</option><option>季铵盐</option><option>酶清洁剂</option><option>低压干式清洁</option></select></label>
+            <label>浓度<input name="concentration" type="number" min="0" step="0.1" value="20" required></label>
+            <label>接触时长（分钟）<input name="contactMinutes" type="number" min="1" value="8" required></label>
+            <label>隔离措施<input name="isolationMeasures" required value="封闭作业区,独立工具"></label>
+            <label>停止条件<input name="stopConditions" required value="色差超过3,材料起翘"></label>
+            <label class="wide">方案依据<textarea name="rationale" required>以低干预参数控制活性，并设置材料变化停止阈值。</textarea></label>
+          </div>
+          <button type="submit">校验并提交方案</button>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="section-title"><span>05</span><div><h2>小区试验</h2><p>先建立基线，再按真实时间逐次追加观察</p></div></div>
+        <form id="trialStartForm">
+          <div class="fields two">
+            <label>试验小区<input name="plotCode" value="PLOT-A" required></label>
+            <label>基线描述<input name="baseline" value="处置前色彩与表面稳定" required></label>
+            <label>基线活性<input name="baselineActivity" type="number" min="0.1" max="10" step="0.1" value="8" required></label>
+			<label>开始时间<input name="startedAt" type="datetime-local" required></label>
+		  </div>
+		  <button type="submit">建立试验基线</button>
+		</form>
+		<hr>
+		<form id="trialObservationForm">
+		  <div class="fields two">
+			<label>观察时间<input name="observedAt" type="datetime-local" required></label>
+			<label>距开始小时数<input name="hoursSinceStart" type="number" min="0.1" step="0.1" value="24" required></label>
+			<label>活性评分<input name="activityScore" type="number" min="0" max="10" step="0.1" value="5" required></label>
+			<label>色差 ΔE<input name="colorDelta" type="number" min="0" step="0.1" value="1.2" required></label>
+			<label class="wide">观察说明<input name="note" value="分期观察读数"></label>
+            <label>偏差编号（可空）<input name="deviationCode" placeholder="DEV-01"></label>
+            <label class="wide">偏差说明<input name="deviationDescription" placeholder="例如：局部湿度短时高于方案值"></label>
+          </div>
+		  <button type="submit">追加分期观察</button>
+        </form>
+		<div id="trialView" class="trial-view empty">尚未建立试验</div>
+      </article>
+
+      <article class="panel">
+        <div class="section-title"><span>06</span><div><h2>复核、冻结与签发</h2><p>逐项裁决偏差，通过后锁定引用</p></div></div>
+        <form id="reviewForm">
+          <div class="fields two">
+            <label>复核员<input name="reviewer" value="保护责任复核员" required></label>
+            <label>结论<select name="decision"><option value="approve">通过</option><option value="reject">驳回整改</option></select></label>
+            <label class="wide">复核意见<textarea name="notes">读数满足观察规则，同意进入证据冻结。</textarea></label>
+          </div>
+          <button type="submit">提交复核裁决</button>
+          <button type="button" id="freeze" class="secondary">冻结证据清单</button>
+        </form>
+        <hr>
+        <form id="credentialForm">
+          <div class="fields two">
+            <label>开放区域（逗号分隔）<input name="allowedZones" value="Z-01" required></label>
+            <label>签发人<input name="issuedBy" value="保护责任复核员" required></label>
+            <label class="wide">开放条件（逗号分隔）<input name="conditions" value="保持相对湿度稳定,每周巡检" required></label>
+            <label class="wide">有效期至<input name="validUntil" type="date" required></label>
+          </div>
+          <button type="submit">签发开放安全凭据</button>
+        </form>
+		<hr>
+		<form id="revokeForm">
+		  <div class="fields two">
+			<label>凭据编号<input name="credentialNo" required></label>
+			<label>撤销操作人<input name="actor" value="保护责任复核员" required></label>
+			<label class="wide">撤销原因<textarea name="reason" required placeholder="例如：现场出现新污染"></textarea></label>
+		  </div>
+		  <button type="submit" class="danger">撤销当前凭据</button>
+		</form>
+      </article>
+
+      <article class="panel credential-panel">
+        <div class="section-title"><span>07</span><div><h2>凭据验真</h2><p>核对签名摘要与冻结事实</p></div></div>
+        <form id="verifyForm" class="inline-form">
+          <input name="credentialNo" placeholder="MURAL-YYYYMMDD-XXXXXXXX" required>
+          <button type="submit">独立验真</button>
+        </form>
+        <div id="credentialView" class="credential empty">尚未签发或验真凭据</div>
+      </article>
+    </section>
+
+    <section class="panel timeline-panel">
+      <div class="section-title"><span>08</span><div><h2>连续审计时间线</h2><p>事件序号、案件版本与链式摘要连续留存</p></div></div>
+      <ol id="timeline" class="timeline"><li>选择处置案后加载审计事件</li></ol>
+    </section>
+  </main>
+
+  <footer>数据仅保存在本地 SQLite · 图像只登记摘要 · 冻结后拒绝篡改</footer>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
