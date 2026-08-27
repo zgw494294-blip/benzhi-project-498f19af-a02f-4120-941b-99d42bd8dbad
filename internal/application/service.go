@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"benzhi-project-498f19af-a02f-4120-941b-99d42bd8dbad/internal/domain"
@@ -15,13 +16,25 @@ import (
 type Clock func() time.Time
 
 type Service struct {
-	repo  Repository
-	now   Clock
-	idgen func(string) string
+	repo              Repository
+	now               Clock
+	idgen             func(string) string
+	verificationMu    sync.RWMutex
+	verificationCache map[string]credentialSnapshot
+}
+
+type credentialSnapshot struct {
+	credential domain.SafetyCredential
+	manifest   domain.FrozenManifest
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now, idgen: randomID}
+	return &Service{
+		repo:              repo,
+		now:               time.Now,
+		idgen:             randomID,
+		verificationCache: make(map[string]credentialSnapshot),
+	}
 }
 
 func NewServiceWithClock(repo Repository, clock Clock) *Service {
@@ -104,12 +117,21 @@ func (s *Service) EvidenceTrends(ctx context.Context, caseID, zoneCode string) (
 }
 
 func (s *Service) VerifyCredential(ctx context.Context, number string) (VerificationResult, error) {
-	credential, manifest, err := s.repo.FindCredential(ctx, number)
-	if err != nil {
-		return VerificationResult{}, err
+	s.verificationMu.RLock()
+	snapshot, ok := s.verificationCache[number]
+	s.verificationMu.RUnlock()
+	if !ok {
+		credential, manifest, err := s.repo.FindCredential(ctx, number)
+		if err != nil {
+			return VerificationResult{}, err
+		}
+		snapshot = credentialSnapshot{credential: credential, manifest: manifest}
+		s.verificationMu.Lock()
+		s.verificationCache[number] = snapshot
+		s.verificationMu.Unlock()
 	}
-	valid, message := domain.VerifyCredential(credential, manifest, s.now().UTC())
-	return VerificationResult{Valid: valid, Message: message, Credential: credential, Manifest: manifest}, nil
+	valid, message := domain.VerifyCredential(snapshot.credential, snapshot.manifest, s.now().UTC())
+	return VerificationResult{Valid: valid, Message: message, Credential: snapshot.credential, Manifest: snapshot.manifest}, nil
 }
 
 func (s *Service) Close() error { return s.repo.Close() }
